@@ -9,33 +9,34 @@ const BANNER = [
   "║            NOTES  TERMINAL                     ║",
   "║                                                ║",
   "║   Type 'help' for available commands           ║",
-  "║   Type 'modules' to list modules               ║",
+  "║   Type 'ls' to list contents                   ║",
   "╚════════════════════════════════════════════════╝",
   "",
 ];
 
-const HELP_HOME = [
+const HELP_ROOT = [
   "",
   "  Commands:",
   "  ──────────────────────────────────────────────",
-  "  modules              List available modules",
-  "  use <module>         Enter a module",
+  "  ls                   List modules",
+  "  cd <module>          Enter a module",
   "  clear                Clear terminal",
   "  help                 Show this help message",
   "",
 ];
 
-const HELP_MODULE = [
+const HELP_DIR = [
   "",
-  "  Commands (inside module):",
+  "  Commands:",
   "  ──────────────────────────────────────────────",
-  "  ls                   List all notes",
+  "  ls                   List contents",
   "  ls <category>        Filter notes by category",
-  "  categories           Show all categories",
-  "  open <id|name>       Open a note in the viewer",
+  "  cd <dir>             Enter a subdirectory",
+  "  cd ..                Go back one level",
+  "  cat <id|name>        View a note",
   "  info <id|name>       Show note details",
+  "  categories           Show all categories",
   "  search <term>        Search notes by keyword",
-  "  back                 Return to module list",
   "  clear                Clear terminal",
   "  help                 Show this help message",
   "",
@@ -59,10 +60,40 @@ function formatNoteRow(note) {
   return `  [${id}]  ${cat} ${note.title}`;
 }
 
-function formatModuleRow(mod, idx) {
-  const num = String(idx + 1).padStart(2, ' ');
-  const count = String(mod.notes.length).padStart(2, ' ');
-  return `  [${num}]  ${mod.title.padEnd(20)} ${count} notes`;
+function formatModuleRow(mod) {
+  const noteCount = mod.directories
+    ? mod.directories.reduce((sum, d) => sum + d.notes.length, 0)
+    : mod.notes.length;
+  const dirLabel = mod.directories
+    ? `${mod.directories.length} dirs, `
+    : '';
+  return `  ${mod.id.padEnd(22)} ${dirLabel}${noteCount} notes`;
+}
+
+function formatDirRow(dir) {
+  return `  ${dir.id.padEnd(22)} ${String(dir.notes.length).padStart(2, ' ')} notes   ${dir.name}`;
+}
+
+function getNotesAtPath(mod, subDir) {
+  if (subDir) {
+    const dir = mod.directories?.find(
+      (d) => d.id.toLowerCase() === subDir.toLowerCase() || d.name.toLowerCase() === subDir.toLowerCase()
+    );
+    return dir ? dir.notes : null;
+  }
+  return mod.notes || null;
+}
+
+function getPdfBasePath(mod, subDir) {
+  if (subDir) return `${mod.basePath}/${subDir}`;
+  return mod.basePath;
+}
+
+function getAllNotes(mod) {
+  if (mod.directories) {
+    return mod.directories.flatMap((d) => d.notes);
+  }
+  return mod.notes || [];
 }
 
 export default function App() {
@@ -75,6 +106,7 @@ export default function App() {
   );
   const [activeNote, setActiveNote] = useState(null);
   const [activeModule, setActiveModule] = useState(null);
+  const [activeSubDir, setActiveSubDir] = useState(null);
 
   const pushLines = useCallback((newLines) => {
     const elements = newLines.map((line) => {
@@ -84,7 +116,11 @@ export default function App() {
     setLineData((prev) => [...prev, ...elements]);
   }, []);
 
-  const promptLabel = activeModule ? `${activeModule.id}>` : '>';
+  const promptLabel = activeModule
+    ? activeSubDir
+      ? `~/${activeModule.id}/${activeSubDir}$`
+      : `~/${activeModule.id}$`
+    : '~$';
 
   const handleInput = useCallback(
     (input) => {
@@ -93,7 +129,11 @@ export default function App() {
       const cmd = parts[0]?.toLowerCase();
       const arg = parts.slice(1).join(' ');
 
-      const prefix = activeModule ? `${activeModule.id}` : '~';
+      const prefix = activeModule
+        ? activeSubDir
+          ? `~/${activeModule.id}/${activeSubDir}`
+          : `~/${activeModule.id}`
+        : '~';
       pushLines([`${prefix} $ ${trimmed}`]);
 
       if (!cmd) return;
@@ -103,29 +143,34 @@ export default function App() {
         return;
       }
 
+      // ─── ROOT LEVEL (no module selected) ───
       if (!activeModule) {
         switch (cmd) {
           case 'help': {
-            pushLines(HELP_HOME);
+            pushLines(HELP_ROOT);
             break;
           }
 
-          case 'modules': {
+          case 'ls': {
             pushLines([
               "",
-              "  Available Modules:",
+              "  Modules:",
               "  ──────────────────────────────────────────────",
               ...modules.map(formatModuleRow),
               "",
-              `  ${modules.length} module(s). Use 'use <name>' to enter.`,
+              `  ${modules.length} module(s). Type 'cd <name>' to enter.`,
               "",
             ]);
             break;
           }
 
-          case 'use': {
+          case 'cd': {
             if (!arg) {
-              pushLines(["  Usage: use <module name>", ""]);
+              pushLines(["  Usage: cd <module>", ""]);
+              break;
+            }
+            if (arg === '..') {
+              pushLines(["  Already at root.", ""]);
               break;
             }
             const q = arg.toLowerCase();
@@ -133,50 +178,104 @@ export default function App() {
               (m) => m.id.toLowerCase() === q || m.title.toLowerCase() === q
             );
             if (!mod) {
-              pushLines([`  Module "${arg}" not found. Type 'modules' to see available modules.`, ""]);
+              pushLines([`  "${arg}" not found. Type 'ls' to see modules.`, ""]);
             } else {
               setActiveModule(mod);
               setActiveNote(null);
-              pushLines([
-                "",
-                `  Entered module: ${mod.title}`,
-                `  ${mod.description}`,
-                `  ${mod.notes.length} note(s) available. Type 'ls' or 'help'.`,
-                "",
-              ]);
+              setActiveSubDir(null);
+              if (mod.directories) {
+                pushLines([
+                  "",
+                  `  ${mod.title}`,
+                  `  ${mod.description}`,
+                  `  ${mod.directories.length} subdirectories. Type 'ls' to browse.`,
+                  "",
+                ]);
+              } else {
+                pushLines([
+                  "",
+                  `  ${mod.title}`,
+                  `  ${mod.description}`,
+                  `  ${mod.notes.length} note(s). Type 'ls' or 'help'.`,
+                  "",
+                ]);
+              }
             }
             break;
           }
 
           default:
-            pushLines([`  Unknown command: ${cmd}. Type 'help' for available commands.`, ""]);
+            pushLines([`  Unknown command: ${cmd}. Type 'help'.`, ""]);
         }
         return;
       }
 
-      const notes = activeModule.notes;
+      // ─── INSIDE A MODULE ───
 
-      switch (cmd) {
-        case 'help': {
-          pushLines(HELP_MODULE);
-          break;
+      // cd command (works at both module and subdir level)
+      if (cmd === 'cd') {
+        if (!arg) {
+          pushLines(["  Usage: cd <dir> or cd ..", ""]);
+          return;
         }
-
-        case 'back': {
-          const name = activeModule.title;
-          setActiveModule(null);
-          setActiveNote(null);
-          pushLines([`  Left module: ${name}`, ""]);
-          break;
+        if (arg === '..') {
+          if (activeSubDir) {
+            setActiveSubDir(null);
+            setActiveNote(null);
+            pushLines([`  Back to ${activeModule.id}/`, ""]);
+          } else {
+            const name = activeModule.title;
+            setActiveModule(null);
+            setActiveNote(null);
+            pushLines([`  Left ${name}`, ""]);
+          }
+          return;
         }
+        if (!activeSubDir && activeModule.directories) {
+          const q = arg.toLowerCase();
+          const dir = activeModule.directories.find(
+            (d) => d.id.toLowerCase() === q || d.name.toLowerCase() === q
+          );
+          if (!dir) {
+            pushLines([`  "${arg}" not found. Type 'ls' to see directories.`, ""]);
+          } else {
+            setActiveSubDir(dir.id);
+            setActiveNote(null);
+            pushLines([
+              "",
+              `  ${dir.name} — ${dir.description}`,
+              `  ${dir.notes.length} note(s). Type 'ls' or 'cat <id>'.`,
+              "",
+            ]);
+          }
+        } else {
+          pushLines([`  "${arg}" is not a directory.`, ""]);
+        }
+        return;
+      }
 
-        case 'ls': {
-          if (arg) {
+      // ls command
+      if (cmd === 'ls') {
+        if (!activeSubDir && activeModule.directories) {
+          pushLines([
+            "",
+            `  ${activeModule.title}:`,
+            "  ──────────────────────────────────────────────",
+            ...activeModule.directories.map(formatDirRow),
+            "",
+            `  ${activeModule.directories.length} directories. Type 'cd <dir>' to enter.`,
+            "",
+          ]);
+        } else {
+          const notes = getNotesAtPath(activeModule, activeSubDir);
+          if (!notes) {
+            pushLines(["  No notes here.", ""]);
+          } else if (arg) {
             const filtered = notes.filter(
               (n) => n.category.toLowerCase().includes(arg.toLowerCase())
             );
             if (filtered.length === 0) {
-              pushLines([`  No notes found in category "${arg}".`, ""]);
+              pushLines([`  No notes in category "${arg}".`, ""]);
             } else {
               pushLines([
                 "",
@@ -184,66 +283,87 @@ export default function App() {
                 "  ──────────────────────────────────────────────",
                 ...filtered.map(formatNoteRow),
                 "",
-                `  ${filtered.length} note(s) found.`,
+                `  ${filtered.length} note(s).`,
                 "",
               ]);
             }
           } else {
+            const label = activeSubDir
+              ? activeModule.directories.find((d) => d.id === activeSubDir)?.name || activeSubDir
+              : activeModule.title;
             pushLines([
               "",
-              `  ${activeModule.title} Notes:`,
+              `  ${label} Notes:`,
               "  ──────────────────────────────────────────────",
               ...notes.map(formatNoteRow),
               "",
-              `  ${notes.length} note(s). Use 'open <id>' to view.`,
+              `  ${notes.length} note(s). Type 'cat <id>' to view.`,
               "",
             ]);
           }
+        }
+        return;
+      }
+
+      // The remaining commands need a notes list
+      const notes = getNotesAtPath(activeModule, activeSubDir);
+      const hasNotes = notes && notes.length > 0;
+
+      switch (cmd) {
+        case 'help': {
+          pushLines(HELP_DIR);
           break;
         }
 
-        case 'categories': {
-          const cats = [...new Set(notes.map((n) => n.category))];
-          pushLines([
-            "",
-            "  Categories:",
-            "  ──────────────────────────────────────────────",
-            ...cats.map((c) => {
-              const count = notes.filter((n) => n.category === c).length;
-              return `  • ${c} (${count})`;
-            }),
-            "",
-          ]);
-          break;
-        }
-
-        case 'open': {
+        case 'cat': {
+          if (!hasNotes) {
+            pushLines(["  No notes at this level. cd into a subdirectory first.", ""]);
+            break;
+          }
           if (!arg) {
-            pushLines(["  Usage: open <id|name>", ""]);
+            pushLines(["  Usage: cat <id|name>", ""]);
             break;
           }
           const note = findNote(notes, arg);
           if (!note) {
-            pushLines([`  Note "${arg}" not found. Use 'ls' to see available notes.`, ""]);
+            pushLines([`  "${arg}" not found. Type 'ls' to see notes.`, ""]);
           } else {
+            const basePath = getPdfBasePath(activeModule, activeSubDir);
             setActiveNote({
               ...note,
-              modulePath: activeModule.basePath,
+              modulePath: basePath,
               moduleTitle: activeModule.title,
             });
-            pushLines([`  Opened: ${note.title}`, ""]);
+            const lines = [
+              "",
+              `  ┌─ ${note.title} ─── [${note.category}]`,
+              "  │",
+            ];
+            if (note.content && note.content.length > 0) {
+              note.content.forEach((line) => {
+                lines.push(`  │  ${line}`);
+              });
+              lines.push("  │");
+            }
+            lines.push(`  └─ PDF loaded in viewer`);
+            lines.push("");
+            pushLines(lines);
           }
           break;
         }
 
         case 'info': {
+          if (!hasNotes) {
+            pushLines(["  No notes at this level. cd into a subdirectory first.", ""]);
+            break;
+          }
           if (!arg) {
             pushLines(["  Usage: info <id|name>", ""]);
             break;
           }
           const note = findNote(notes, arg);
           if (!note) {
-            pushLines([`  Note "${arg}" not found.`, ""]);
+            pushLines([`  "${arg}" not found.`, ""]);
           } else {
             pushLines([
               "",
@@ -251,11 +371,33 @@ export default function App() {
               `  ID:          ${note.id}`,
               `  Category:    ${note.category}`,
               `  Module:      ${activeModule.title}`,
-              `  File:        ${note.name}.pdf`,
+              `  File:        ${note.file}`,
               `  Description: ${note.description}`,
               "",
             ]);
           }
+          break;
+        }
+
+        case 'categories': {
+          const allNotes = activeSubDir
+            ? notes
+            : getAllNotes(activeModule);
+          if (!allNotes || allNotes.length === 0) {
+            pushLines(["  No notes available.", ""]);
+            break;
+          }
+          const cats = [...new Set(allNotes.map((n) => n.category))];
+          pushLines([
+            "",
+            "  Categories:",
+            "  ──────────────────────────────────────────────",
+            ...cats.map((c) => {
+              const count = allNotes.filter((n) => n.category === c).length;
+              return `  • ${c} (${count})`;
+            }),
+            "",
+          ]);
           break;
         }
 
@@ -264,13 +406,15 @@ export default function App() {
             pushLines(["  Usage: search <keyword>", ""]);
             break;
           }
+          const allNotes = getAllNotes(activeModule);
           const q = arg.toLowerCase();
-          const results = notes.filter(
+          const results = allNotes.filter(
             (n) =>
               n.title.toLowerCase().includes(q) ||
               n.description.toLowerCase().includes(q) ||
               n.category.toLowerCase().includes(q) ||
-              n.name.toLowerCase().includes(q)
+              n.name.toLowerCase().includes(q) ||
+              (n.content && n.content.some((line) => line.toLowerCase().includes(q)))
           );
           if (results.length === 0) {
             pushLines([`  No results for "${arg}".`, ""]);
@@ -281,23 +425,18 @@ export default function App() {
               "  ──────────────────────────────────────────────",
               ...results.map(formatNoteRow),
               "",
-              `  ${results.length} result(s). Use 'open <id>' to view.`,
+              `  ${results.length} result(s).`,
               "",
             ]);
           }
           break;
         }
 
-        case 'modules': {
-          pushLines(["  Use 'back' to return to module list first.", ""]);
-          break;
-        }
-
         default:
-          pushLines([`  Unknown command: ${cmd}. Type 'help' for available commands.`, ""]);
+          pushLines([`  Unknown command: ${cmd}. Type 'help'.`, ""]);
       }
     },
-    [pushLines, activeModule]
+    [pushLines, activeModule, activeSubDir]
   );
 
   const pdfSrc = activeNote
@@ -336,8 +475,8 @@ export default function App() {
               <div className="icon">&#128218;</div>
               <p>
                 No note selected.<br />
-                Type <code>modules</code> to list modules,
-                then <code>use &lt;name&gt;</code> to enter one.
+                Type <code>ls</code> to list modules,
+                then <code>cd &lt;name&gt;</code> to enter one.
               </p>
             </div>
           </div>
