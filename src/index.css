@@ -1,0 +1,147 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+  background: #0a0a0f;
+  color: #e0e0e0;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+.terminal-panel {
+  width: 45%;
+  min-width: 400px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #1e1e2e;
+}
+
+.terminal-panel .react-terminal-wrapper {
+  height: 100% !important;
+  max-height: 100% !important;
+  border-radius: 0 !important;
+  font-size: 13px !important;
+}
+
+.terminal-panel .react-terminal {
+  height: calc(100% - 34px) !important;
+  max-height: calc(100% - 34px) !important;
+  overflow-y: auto !important;
+}
+
+.viewer-panel {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #0d0d14;
+}
+
+.viewer-header {
+  padding: 10px 20px;
+  background: #12121c;
+  border-bottom: 1px solid #1e1e2e;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+}
+
+.viewer-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #a0a0c0;
+  letter-spacing: 0.5px;
+}
+
+.viewer-header .badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #1a1a2e;
+  color: #7c7cff;
+  border: 1px solid #2a2a4e;
+}
+
+.viewer-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viewer-content iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.viewer-placeholder {
+  text-align: center;
+  color: #4a4a6a;
+  padding: 40px;
+}
+
+.viewer-placeholder .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.4;
+}
+
+.viewer-placeholder p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.viewer-placeholder code {
+  background: #1a1a2e;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #7c7cff;
+  font-size: 13px;
+}
+
+.note-card {
+  background: #12121c;
+  border: 1px solid #1e1e2e;
+  border-radius: 8px;
+  padding: 24px 32px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.note-card h3 {
+  color: #c0c0e0;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.note-card .category {
+  color: #7c7cff;
+  font-size: 12px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.note-card .desc {
+  color: #8080a0;
+  font-size: 13px;
+  line-height: 1.5;
+}
