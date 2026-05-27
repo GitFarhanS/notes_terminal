@@ -8,8 +8,8 @@ const BANNER = [
   "╔════════════════════════════════════════════════╗",
   "║            NOTES  TERMINAL                     ║",
   "║                                                ║",
-  "║   Type 'help' for available commands            ║",
-  "║   Type 'modules' to list modules                ║",
+  "║   Type 'help' for available commands           ║",
+  "║   Type 'modules' to list modules               ║",
   "╚════════════════════════════════════════════════╝",
   "",
 ];
