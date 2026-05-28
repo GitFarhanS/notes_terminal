@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import Terminal, { ColorMode, TerminalOutput } from 'react-terminal-ui';
+import CustomTerminal from './CustomTerminal';
 import modules from './modules';
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -101,7 +101,7 @@ export default function App() {
   const [lineData, setLineData] = useState(() =>
     BANNER.map((line) => {
       const k = keyRef.current++;
-      return <TerminalOutput key={`k${k}`}>{line}</TerminalOutput>;
+      return <div className="terminal-line" key={`k${k}`}>{line}</div>;
     })
   );
   const [activeNote, setActiveNote] = useState(null);
@@ -111,7 +111,7 @@ export default function App() {
   const pushLines = useCallback((newLines) => {
     const elements = newLines.map((line) => {
       const k = keyRef.current++;
-      return <TerminalOutput key={`k${k}`}>{line}</TerminalOutput>;
+      return <div className="terminal-line" key={`k${k}`}>{line}</div>;
     });
     setLineData((prev) => [...prev, ...elements]);
   }, []);
@@ -439,6 +439,68 @@ export default function App() {
     [pushLines, activeModule, activeSubDir]
   );
 
+  const getCompletions = useCallback((currentInput) => {
+    const parts = currentInput.split(/\s+/);
+    const cmd = parts[0]?.toLowerCase() || '';
+    const arg = parts.slice(1).join(' ').toLowerCase();
+
+    const rootCommands = ['help', 'ls', 'cd', 'clear'];
+    const moduleCommands = ['help', 'ls', 'cd', 'cat', 'info', 'categories', 'search', 'clear'];
+
+    if (parts.length <= 1) {
+      const commands = activeModule ? moduleCommands : rootCommands;
+      const matches = commands.filter((c) => c.startsWith(cmd));
+      return matches.map((c) => c + ' ');
+    }
+
+    if (cmd === 'cd') {
+      if (!activeModule) {
+        const targets = modules.map((m) => m.id);
+        const matches = targets.filter((t) => t.toLowerCase().startsWith(arg));
+        return matches.map((t) => `cd ${t}`);
+      } else if (!activeSubDir && activeModule.directories) {
+        const targets = activeModule.directories.map((d) => d.id);
+        const matches = targets.filter((t) => t.toLowerCase().startsWith(arg));
+        return matches.map((t) => `cd ${t}`);
+      }
+    }
+
+    if (cmd === 'cat' || cmd === 'info') {
+      const notes = getNotesAtPath(activeModule, activeSubDir);
+      if (notes) {
+        const targets = notes.map((n) => n.name);
+        const matches = targets.filter((t) => t.toLowerCase().startsWith(arg));
+        return matches.map((t) => `${cmd} ${t}`);
+      }
+    }
+
+    if (cmd === 'ls' && activeModule) {
+      const notes = getNotesAtPath(activeModule, activeSubDir);
+      if (notes) {
+        const cats = [...new Set(notes.map((n) => n.category))];
+        const matches = cats.filter((c) => c.toLowerCase().startsWith(arg));
+        return matches.map((c) => `ls ${c}`);
+      }
+    }
+
+    return [];
+  }, [activeModule, activeSubDir]);
+
+  const handleTerminalInput = useCallback((input, isTabHint) => {
+    if (isTabHint) {
+      const completions = getCompletions(input);
+      if (completions.length > 1) {
+        const items = completions.map((c) => {
+          const parts = c.trim().split(/\s+/);
+          return parts[parts.length - 1];
+        });
+        pushLines([`  ${items.join('   ')}`]);
+      }
+      return;
+    }
+    handleInput(input);
+  }, [handleInput, getCompletions, pushLines]);
+
   const pdfSrc = activeNote
     ? `${BASE}${activeNote.modulePath}/${activeNote.file}`
     : null;
@@ -446,15 +508,13 @@ export default function App() {
   return (
     <div className="app-container">
       <div className="terminal-panel">
-        <Terminal
-          name="Notes Terminal"
-          colorMode={ColorMode.Dark}
-          onInput={handleInput}
+        <CustomTerminal
           prompt={promptLabel}
-          height="100%"
+          onInput={handleTerminalInput}
+          getCompletions={getCompletions}
         >
           {lineData}
-        </Terminal>
+        </CustomTerminal>
       </div>
 
       <div className="viewer-panel">
